@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <list>
+#include <string>
 #include <typeinfo>
 
 #include <cassert>
@@ -24,9 +25,11 @@ extern "C"
 #	include <sys/wait.h>
 #	include <unistd.h>
 #	include <arpa/inet.h>
+#	include <getopt.h>
 }
 
 #include "compressor.hxx"
+#include "delta.hxx"
 #include "hash.hxx"
 #include "squashfs.hxx"
 #include "util.hxx"
@@ -370,17 +373,47 @@ void write_block_list(SparseFileWriter& outf, sqdelta_header h,
 		outf.write<struct sqdelta_header>(h);
 }
 
+// Options to calculate delta
+enum class DiffTool {
+	XDELTA3,
+	BSDIFF
+};
+
 int main(int argc, char* argv[])
 {
-	if (argc < 4)
+	DiffTool diff_tool = DiffTool::XDELTA3;
+	int opt;
+
+	// Parse command line options
+	while ((opt = getopt(argc, argv, "d:")) != -1) {
+		switch (opt) {
+		case 'd':
+			if (strcmp(optarg, "xdelta3") == 0)
+				diff_tool = DiffTool::XDELTA3;
+			else if (strcmp(optarg, "bsdiff") == 0)
+				diff_tool = DiffTool::BSDIFF;
+			else {
+				std::cerr << "Unknown diff tool: " << optarg << "\n";
+				return 1;
+			}
+			break;
+		default:
+			std::cerr << "Usage: " << argv[0]
+				  << " [-d xdelta3|bsdiff] <source> <target> <patch-output>\n";
+			return 1;
+		}
+	}
+
+	if (argc - optind < 3)
 	{
-		std::cerr << "Usage: " << argv[0] << " <source> <target> <patch-output>\n";
+		std::cerr << "Usage: " << argv[0]
+			  << " [-d xdelta3|bsdiff] <source> <target> <patch-output>\n";
 		return 1;
 	}
 
-	const char* source_file = argv[1];
-	const char* target_file = argv[2];
-	const char* patch_file = argv[3];
+	const char* source_file = argv[optind];
+	const char* target_file = argv[optind + 1];
+	const char* patch_file = argv[optind + 2];
 
 	try
 	{
@@ -571,46 +604,15 @@ int main(int argc, char* argv[])
 
 		write_block_list(patch_out, dh, source_blocks, false);
 
-		std::cerr << "Calling xdelta to generate the diff..." << std::endl;
-
-		pid_t child = fork();
-		if (child == -1)
-			throw IOError("fork() failed", errno);
-		if (child == 0)
-		{
-			try
-			{
-				// in child
-				if (close(1) == -1)
-					throw IOError("Unable to close stdout", errno);
-				if (dup2(patch_out.fd, 1) == -1)
-					throw IOError("Unable to override stdout via dup2()", errno);
-
-				if (execlp("xdelta3",
-						"xdelta3", "-v", "-9", "-S", "djw",
-						"-s", source_temp.name(), target_temp.name(),
-						static_cast<const char*>(0)) == -1)
-					throw IOError("execlp() failed", errno);
-			}
-			catch (IOError& e)
-			{
-				std::cerr << "Error occured in child process:\n\t"
-					<< e.what() << "\n\terrno: " << strerror(e.errno_val) << "\n";
+                switch (diff_tool) {
+                case DiffTool::XDELTA3: {
+                        XDelta xd;
+                        if (xd.delta(source_temp.name(), target_temp.name(),
+                                     patch_out.fd) != 0)
 				return 1;
-			}
 		}
-		else
-		{
-			int status;
-
-			waitpid(child, &status, 0);
-
-			if (WEXITSTATUS(status) != 0)
-			{
-				std::cerr << "Child process terminate with error status\n"
-					"\treturn code: " << WEXITSTATUS(status) << "\n";
-				return 1;
-			}
+                case DiffTool::BSDIFF:
+			return 1;
 		}
 
 		target_temp.close();
