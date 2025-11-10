@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <list>
+#include <memory>
 #include <string>
 #include <typeinfo>
 
@@ -379,6 +380,17 @@ enum class DiffTool {
 	BSDIFF
 };
 
+std::unique_ptr<Delta> select_delta(DiffTool dtool)
+{
+	switch (dtool) {
+	case DiffTool::XDELTA3:
+		return std::unique_ptr<Delta>(new XDelta);
+	case DiffTool::BSDIFF:
+		return std::unique_ptr<Delta>(new BsDiff);
+        }
+	return nullptr;
+}
+
 int main(int argc, char* argv[])
 {
 	DiffTool diff_tool = DiffTool::XDELTA3;
@@ -604,14 +616,9 @@ int main(int argc, char* argv[])
 
 		write_block_list(patch_out, dh, source_blocks, false);
 
-                switch (diff_tool) {
-                case DiffTool::XDELTA3: {
-                        XDelta xd;
-                        if (xd.delta(source_temp.name(), target_temp.name(),
-                                     patch_out.fd) != 0)
-				return 1;
-		}
-                case DiffTool::BSDIFF:
+		auto dtool = select_delta(diff_tool);
+		if (dtool->delta(source_temp.name(), target_temp.name(),
+				 patch_out.fd) != 0) {
 			return 1;
 		}
 

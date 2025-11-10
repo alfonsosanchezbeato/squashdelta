@@ -66,3 +66,39 @@ int XDelta::delta(const char *path1, const char *path2, int out_fd)
         }
 	return 0;
 }
+
+int BsDiff::delta(const char *path1, const char *path2, int fd_out)
+{
+	std::cerr << "Calling bsdiff to generate the diff..." << std::endl;
+	std::string deltaPath(get_temp_filename());
+
+        pid_t child = fork();
+	if (child == -1)
+		throw IOError("fork() failed", errno);
+	if (child == 0)
+	{
+		// in child
+		if (execlp("bsdiff", "bsdiff", path1, path2, deltaPath.c_str(),
+                           static_cast<const char*>(0)) == -1) {
+			std::cerr << "Error occured in child process:\n\t"
+				  << "execlp() failed\n\terrno: " << errno << "\n";
+			return 1;
+                }
+		copy_file_to_fd(deltaPath.c_str(), fd_out);
+	}
+	else
+	{
+		int status;
+
+		waitpid(child, &status, 0);
+
+		if (WEXITSTATUS(status) != 0)
+		{
+			std::cerr << "Child process terminate with error status\n"
+				"\treturn code: " << WEXITSTATUS(status) << "\n";
+			return status;
+		}
+        }
+	return 0;
+}
+

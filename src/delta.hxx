@@ -21,11 +21,23 @@ extern "C"
 #endif
 }
 
+class Delta
+{
+public:
+	virtual ~Delta() {};
+	virtual int delta(const char *path1, const char *path2, int out_fd) = 0;
+};
 
-class XDelta
+class XDelta : public Delta
 {
 public:
 	int delta(const char *path1, const char *path2, int out_fd);
+};
+
+class BsDiff : public Delta
+{
+public:
+	int delta(const char *path1, const char *path2, int fd_out);
 };
 
 #endif /*!SDT_DELTA_HXX*/
