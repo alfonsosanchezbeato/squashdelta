@@ -175,4 +175,10 @@ public:
 	const char* name();
 };
 
+// Create a name for a temporary file.
+std::string get_temp_filename();
+
+// Write file to open file descriptor.
+void copy_file_to_fd(const char *source_path, int dest_fd);
+
 #endif /*!SDT_UTIL_HXX*/

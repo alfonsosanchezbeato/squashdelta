@@ -8,6 +8,10 @@
 #	include "config.h"
 #endif
 
+#include <iostream>
+#include <fstream>
+#include <string>
+
 #include <cerrno>
 #include <cstring>
 
@@ -244,4 +248,32 @@ void TemporarySparseFileWriter::close()
 	if (parent_pid == getpid() && unlink(name()) == -1)
 		throw IOError("Unable to unlink the temporary file", errno);
 	buf[0] = '\0';
+}
+
+std::string get_temp_filename() {
+	char temp_filename[] = "sqdelta.XXXXXX";
+	// Note that mktemp is considered unsafe.
+        int fd = mkstemp(temp_filename);
+        if (fd == -1) {
+		throw IOError("Unable to create temporary file", errno);
+        }
+
+	close(fd);  // Close immediately
+	unlink(temp_filename);  // Delete the file, keep just the name
+
+	return std::string(temp_filename);
+}
+
+void copy_file_to_fd(const char* source_path, int dest_fd) {
+	std::ifstream source(source_path, std::ios::binary);
+	if (!source) {
+		throw IOError("Error opening source file", errno);
+	}
+
+        char buffer[4096];
+        while (source.read(buffer, sizeof(buffer)) || source.gcount() > 0) {
+		if (write(dest_fd, buffer, source.gcount()) != source.gcount()) {
+			throw IOError("Error writing to destination", errno);
+		}
+        }
 }
