@@ -84,7 +84,6 @@ int BsDiff::delta(const char *path1, const char *path2, int fd_out)
 				  << "execlp() failed\n\terrno: " << errno << "\n";
 			return 1;
                 }
-		copy_file_to_fd(deltaPath.c_str(), fd_out);
 	}
 	else
 	{
@@ -98,6 +97,7 @@ int BsDiff::delta(const char *path1, const char *path2, int fd_out)
 				"\treturn code: " << WEXITSTATUS(status) << "\n";
 			return status;
 		}
+		copy_file_to_fd(deltaPath.c_str(), fd_out);
         }
 	return 0;
 }

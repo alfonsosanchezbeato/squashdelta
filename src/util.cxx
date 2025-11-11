@@ -264,7 +264,7 @@ std::string get_temp_filename() {
 	return std::string(temp_filename);
 }
 
-void copy_file_to_fd(const char* source_path, int dest_fd) {
+void copy_file_to_fd(const char *source_path, int dest_fd) {
 	std::ifstream source(source_path, std::ios::binary);
 	if (!source) {
 		throw IOError("Error opening source file", errno);
